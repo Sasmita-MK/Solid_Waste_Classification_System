@@ -1,35 +1,30 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from Training import train_model
-from ModelDefinition import initialize_model
+from ModelDefinition import create_model
 from DatasetPreProcessing import load_data
+from Training import train_model
 from Webcam import capture_and_classify
+import os
+
 
 def main():
-    # Load and prepare data
-    print("Loading dataset...")
-    _, dataloader = load_data(batch_size=32)
-    print("Dataset loaded.")
-
-    # Set up device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    model = create_model(num_classes=6).to(device)
 
-    # Define model, loss, and optimizer
-    model = initialize_model(num_classes=4)  # Assuming 4 waste categories
-    model.to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    # Load or Train Model
+    if os.path.exists("trained_model.pth"):
+        model.load_state_dict(torch.load("trained_model.pth"))
+        print("Loaded pretrained model.")
+    else:
+        _, dataloader = load_data(batch_size=32)
+        criterion = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        model = train_model(model, dataloader, criterion, optimizer, device, num_epochs=5)
+        torch.save(model.state_dict(), "trained_model.pth")
+        print("Training complete and model saved.")
 
-    # Train model
-    print("Starting model training...")
-    model = train_model(model, dataloader, criterion, optimizer, device, num_epochs=5)
-    print("Model training completed.")
-
-    # Start webcam for classification
-    print("Starting webcam for real-time classification...")
+    # Start Webcam Classification
     capture_and_classify(model, device)
+
 
 if __name__ == "__main__":
     main()

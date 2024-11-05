@@ -3,6 +3,8 @@ import torch
 from torchvision import transforms
 from PIL import Image
 
+# Define class names corresponding to your dataset labels
+class_names = ["Glass", "Metal", "Paper", "Plastic", "Cardboard", "Organic", "Other"]  # Adjust this list as per your dataset
 
 def capture_and_classify(model, device):
     # Set model to evaluation mode
@@ -39,8 +41,8 @@ def capture_and_classify(model, device):
             outputs = model(image)
             _, predicted = torch.max(outputs, 1)
 
-            # Display the prediction
-            label = predicted.item()
+            # Get the class label from the predicted index
+            label = class_names[predicted.item()]
             label_text = f"Predicted Class: {label}"
             print(label_text)
 
@@ -48,8 +50,9 @@ def capture_and_classify(model, device):
             cv2.putText(frame, label_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             cv2.imshow("Webcam - Solid Waste Classification", frame)
 
-            # Press 'q' to quit
+            # Check for 'q' key press to quit
             if cv2.waitKey(1) & 0xFF == ord('q'):
+                print("Exiting webcam...")
                 break
 
     # Release the webcam and close windows
