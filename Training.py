@@ -1,4 +1,3 @@
-# Training.py
 import torch
 
 def train_model(model, dataloader, criterion, optimizer, device, num_epochs=5, model_path="trained_model.pth"):
@@ -10,28 +9,17 @@ def train_model(model, dataloader, criterion, optimizer, device, num_epochs=5, m
     for epoch in range(num_epochs):
         running_loss = 0.0
         for images, labels in dataloader:
-            # Debug: Print label values for verification
-            unique_labels = torch.unique(labels)
-            print(f"Batch unique labels: {unique_labels}")
-
-            # Move data to device
             images, labels = images.to(device), labels.to(device)
-
-            # Forward pass
             optimizer.zero_grad()
             outputs = model(images)
             loss = criterion(outputs, labels)
-
-            # Backward and optimize
             loss.backward()
             optimizer.step()
-
             running_loss += loss.item()
 
         epoch_loss = running_loss / len(dataloader)
         print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {epoch_loss:.4f}")
 
-        # Save best model based on validation loss
         if epoch_loss < best_loss:
             best_loss = epoch_loss
             torch.save(model.state_dict(), model_path)

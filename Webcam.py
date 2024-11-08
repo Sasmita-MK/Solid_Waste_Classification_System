@@ -2,23 +2,20 @@ import cv2
 import torch
 from torchvision import transforms
 from PIL import Image
+import torch.nn.functional as F
 
-# Define class names corresponding to your dataset labels
-class_names = ["Glass", "Metal", "Paper", "Plastic", "Cardboard", "Organic"]  # Adjust as needed
+class_names = ["Glass", "Metal", "Paper", "Plastic", "Cardboard", "Organic"]
 
-def capture_and_classify(model, device):
-    # Set model to evaluation mode
-    model.eval()
-    confidence_threshold = 0.6  # Threshold to filter low-confidence predictions
+def capture_and_classify(models, device, thresholds={"Paper": 0.7, "Cardboard": 0.7}):
+    for model in models.values():
+        model.eval()
 
-    # Define preprocessing for webcam input
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    # Start webcam
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Error: Could not open webcam.")
@@ -31,32 +28,27 @@ def capture_and_classify(model, device):
                 print("Error: Failed to capture image.")
                 break
 
-            # Convert to PIL Image and preprocess
             image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             image = transform(image).unsqueeze(0).to(device)
+            outputs = [model(image) for model in models.values()]
+            avg_output = torch.mean(torch.stack(outputs), dim=0)
+            probs = F.softmax(avg_output, dim=1)
+            confidence, predicted = torch.max(probs, 1)
 
-            # Classify the image
-            outputs = model(image)
-            _, predicted = torch.max(outputs, 1)
-            confidence = torch.softmax(outputs, 1)[0, predicted].item()
-
-            if confidence > confidence_threshold:
-                label = class_names[predicted.item()]
-                label_text = f"Predicted: {label} ({confidence:.2f})"
+            label = class_names[predicted.item()]
+            threshold = thresholds.get(label, 0.6)
+            if confidence.item() > threshold:
+                label_text = f"Predicted: {label} ({confidence.item():.2f})"
             else:
                 label_text = "Not recognized as waste"
 
             print(label_text)
-
-            # Display frame with prediction
             cv2.putText(frame, label_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             cv2.imshow("Webcam - Solid Waste Classification", frame)
 
-            # Check for 'q' key press to quit
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("Exiting webcam...")
                 break
 
-    # Release the webcam and close windows
     cap.release()
     cv2.destroyAllWindows()

@@ -1,25 +1,24 @@
 # DatasetPreProcessing.py
 import os
+import shutil
+import numpy as np
+import torch
 from datasets import load_dataset, load_from_disk
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
-import torch
 from PIL import Image
 
 def load_data(batch_size=32, dataset_path="cached_dataset"):
-    # Force re-create the cached dataset by deleting the existing cache
+    # Check if dataset cache exists, load from cache if available
     if os.path.exists(dataset_path):
-        print("Deleting existing cached dataset...")
-        import shutil
-        shutil.rmtree(dataset_path)
-
-    # Load and filter dataset
-    dataset = load_dataset("rootstrap-org/waste-classifier")
-    dataset = dataset.filter(lambda x: x["label"] in range(6))
-
-    # Save the filtered dataset to ensure caching works correctly
-    dataset.save_to_disk(dataset_path)
-    print("Filtered dataset saved to disk.")
+        print("Loading cached dataset...")
+        dataset = load_from_disk(dataset_path)
+    else:
+        print("Downloading and caching dataset...")
+        dataset = load_dataset("rootstrap-org/waste-classifier")
+        dataset = dataset.filter(lambda x: x["label"] in range(6))
+        dataset.save_to_disk(dataset_path)
+        print("Filtered dataset saved to disk.")
 
     # Enhanced Transformations
     transform = transforms.Compose([
@@ -57,3 +56,26 @@ def load_data(batch_size=32, dataset_path="cached_dataset"):
     train_dataset = WasteDataset(dataset["train"], transform=transform)
     dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     return train_dataset, dataloader
+
+def calculate_class_weights(dataset):
+    labels = []
+    # Check if dataset has splits
+    if "train" in dataset:
+        split_data = dataset["train"]
+    else:
+        split_data = dataset  # No split; use the dataset directly
+
+    # Collect all labels from the dataset
+    for sample in split_data:
+        if isinstance(sample, tuple):
+            _, label = sample  # Extract label if sample is (image, label)
+        else:
+            label = sample['label']  # Use label directly if sample is a dictionary
+
+        labels.append(label)
+
+    # Calculate class weights
+    label_counts = np.bincount(labels, minlength=6)
+    class_weights = 1.0 / (label_counts + 1e-6)  # Avoid division by zero
+    class_weights = class_weights / class_weights.sum()  # Normalize weights
+    return torch.tensor(class_weights, dtype=torch.float32)
