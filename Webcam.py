@@ -4,11 +4,12 @@ from torchvision import transforms
 from PIL import Image
 
 # Define class names corresponding to your dataset labels
-class_names = ["Glass", "Metal", "Paper", "Plastic", "Cardboard", "Organic", "Other"]  # Adjust this list as per your dataset
+class_names = ["Glass", "Metal", "Paper", "Plastic", "Cardboard", "Organic"]  # Adjust as needed
 
 def capture_and_classify(model, device):
     # Set model to evaluation mode
     model.eval()
+    confidence_threshold = 0.6  # Threshold to filter low-confidence predictions
 
     # Define preprocessing for webcam input
     transform = transforms.Compose([
@@ -25,28 +26,29 @@ def capture_and_classify(model, device):
 
     with torch.no_grad():
         while True:
-            # Capture frame-by-frame
             ret, frame = cap.read()
             if not ret:
                 print("Error: Failed to capture image.")
                 break
 
-            # Convert to PIL Image
+            # Convert to PIL Image and preprocess
             image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-
-            # Preprocess the image
             image = transform(image).unsqueeze(0).to(device)
 
             # Classify the image
             outputs = model(image)
             _, predicted = torch.max(outputs, 1)
+            confidence = torch.softmax(outputs, 1)[0, predicted].item()
 
-            # Get the class label from the predicted index
-            label = class_names[predicted.item()]
-            label_text = f"Predicted Class: {label}"
+            if confidence > confidence_threshold:
+                label = class_names[predicted.item()]
+                label_text = f"Predicted: {label} ({confidence:.2f})"
+            else:
+                label_text = "Not recognized as waste"
+
             print(label_text)
 
-            # Display the frame with prediction
+            # Display frame with prediction
             cv2.putText(frame, label_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             cv2.imshow("Webcam - Solid Waste Classification", frame)
 

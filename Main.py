@@ -5,7 +5,6 @@ from Training import train_model
 from Webcam import capture_and_classify
 import os
 
-
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = create_model(num_classes=6).to(device)
@@ -24,7 +23,6 @@ def main():
 
     # Start Webcam Classification
     capture_and_classify(model, device)
-
 
 if __name__ == "__main__":
     main()
