@@ -4,7 +4,7 @@ from torchvision import transforms
 from PIL import Image
 import torch.nn.functional as F
 
-class_names = ["Glass", "Metal", "Paper", "Plastic", "Cardboard", "Organic"]
+class_names = ["Paper", "Compost", "Glass", "Metal", "CardBoard", "Plastic"]
 
 def capture_and_classify(models, device, thresholds={"Paper": 0.7, "Cardboard": 0.7}):
     for model in models.values():

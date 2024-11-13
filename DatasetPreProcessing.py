@@ -1,15 +1,11 @@
-# DatasetPreProcessing.py
 import os
-import shutil
 import numpy as np
 import torch
 from datasets import load_dataset, load_from_disk
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
-from PIL import Image
 
 def load_data(batch_size=32, dataset_path="cached_dataset"):
-    # Check if dataset cache exists, load from cache if available
     if os.path.exists(dataset_path):
         print("Loading cached dataset...")
         dataset = load_from_disk(dataset_path)
@@ -20,7 +16,6 @@ def load_data(batch_size=32, dataset_path="cached_dataset"):
         dataset.save_to_disk(dataset_path)
         print("Filtered dataset saved to disk.")
 
-    # Enhanced Transformations
     transform = transforms.Compose([
         transforms.RandomResizedCrop((224, 224), scale=(0.8, 1.0)),
         transforms.RandomHorizontalFlip(),
@@ -30,7 +25,6 @@ def load_data(batch_size=32, dataset_path="cached_dataset"):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    # Custom Dataset class
     class WasteDataset(Dataset):
         def __init__(self, hf_dataset, transform=None):
             self.dataset = hf_dataset
@@ -44,7 +38,6 @@ def load_data(batch_size=32, dataset_path="cached_dataset"):
             image = example["image"].convert("RGB")
             label = example["label"]
 
-            # Check if label is out of expected range
             if label not in range(6):
                 raise ValueError(f"Label out of range: {label}. Expected range: [0, 5]")
 
@@ -52,30 +45,24 @@ def load_data(batch_size=32, dataset_path="cached_dataset"):
                 image = self.transform(image)
             return image, torch.tensor(label)
 
-    # Load dataset into WasteDataset and DataLoader
-    train_dataset = WasteDataset(dataset["train"], transform=transform)
+    train_dataset = WasteDataset(dataset, transform=transform)
     dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     return train_dataset, dataloader
 
 def calculate_class_weights(dataset):
     labels = []
-    # Check if dataset has splits
-    if "train" in dataset:
-        split_data = dataset["train"]
-    else:
-        split_data = dataset  # No split; use the dataset directly
 
-    # Collect all labels from the dataset
-    for sample in split_data:
+    for sample in dataset:
         if isinstance(sample, tuple):
-            _, label = sample  # Extract label if sample is (image, label)
+            _, label = sample
+        elif isinstance(sample, dict):
+            label = sample['label']
         else:
-            label = sample['label']  # Use label directly if sample is a dictionary
+            raise ValueError("Unexpected data format. Each sample should be a tuple or dictionary.")
 
         labels.append(label)
 
-    # Calculate class weights
     label_counts = np.bincount(labels, minlength=6)
-    class_weights = 1.0 / (label_counts + 1e-6)  # Avoid division by zero
-    class_weights = class_weights / class_weights.sum()  # Normalize weights
+    class_weights = 1.0 / (label_counts + 1e-6)
+    class_weights = class_weights / class_weights.sum()
     return torch.tensor(class_weights, dtype=torch.float32)
